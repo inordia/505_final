@@ -1,0 +1,299 @@
+library(tidyverse)
+library(tidycensus)
+library(sf)
+library(lubridate)
+library(kableExtra)
+library(patchwork)
+library(ggplot2)
+library(viridis)
+library(gridExtra)
+library(knitr)
+library(dplyr)
+library(osmdata)
+library(tigris)
+library(stringr)
+
+mapTheme <- function (base_size=12){theme(plot.title =element_text(size=12),
+                                          plot.subtitle = element_text(size=8),
+                                          plot.caption = element_text(size = 6),
+                                          axis.line=element_blank(),
+                                          axis.text.x=element_blank(),
+                                          axis.text.y=element_blank(),
+                                          axis.ticks=element_blank(),
+                                          axis.title.x=element_blank(),
+                                          axis.title.y=element_blank(),
+                                          panel.background=element_blank(),
+                                          panel.border=element_blank(),
+                                          panel.grid.major=element_line(colour = 'transparent'),
+                                          panel.grid.minor=element_blank(),
+                                          legend.direction = "vertical", 
+                                          legend.position = "right",
+                                          plot.margin = margin(1, 1, 1, 1, 'cm'),
+                                          legend.key.height = unit(1, "cm"), legend.key.width = unit(0.2, "cm"))}
+
+
+palette5 <- c("#ffffcc","#a1dab4","#41b6c4","#2c7fb8","#253494")
+
+qBr <- function(df, variable, rnd) {
+  if (missing(rnd)) {
+    as.character(quantile(round(df[[variable]],0),
+                          c(.01,.2,.4,.6,.8), na.rm=T))
+  } else if (rnd == FALSE | rnd == F) {
+    as.character(formatC(quantile(df[[variable]],
+                                  c(.01,.2,.4,.6,.8), na.rm=T), digits = 3))
+  }
+}
+
+
+q5 <- function(variable) {as.factor(ntile(variable, 5))}
+
+fishtown_geoids <- c("42101014300", "42101015800", "42101016000")
+total_pop_var <- "B01003_001"
+
+get_fishtown_pop <- function(year) {
+  get_acs(geography = "tract", 
+          variables = total_pop_var, 
+          year = year,
+          county = "Philadelphia",
+          state = "Pennsylvania"
+  ) %>% 
+    filter(GEOID %in% fishtown_geoids) %>% 
+    summarize(pop = sum(estimate)) %>% 
+    mutate(year = year)
+}
+
+pop_by_year <-  map_dfr(2009:2019, get_fishtown_pop) 
+
+ggplot(data = pop_by_year) + geom_point(aes(x = year, y = pop))
+
+
+## regression
+mod.1 <- lm(pop ~ year, data = pop_by_year)
+summary(mod.1)
+
+mod.2 <- lm(pop~ year + I(year^2), data = pop_by_year)
+options(scipen=999)
+summary(mod.2)
+
+
+
+plot(pop_by_year$year, pop_by_year$pop,
+     main = "Population", #give plot a title
+     xlab = "Year", ylab = "Population", #add labels for x and y axes
+     col = "black", pch = 16)
+abline(mod.1)
+
+plot(pop_by_year$year, pop_by_year$pop,
+     main = "Population",
+     xlab = "Year", ylab = "Population",
+     col = "black", pch = 16)
+lines(pop_by_year$year, predict(mod.2), col = "red")
+
+futurepop <- data.frame(seq(from = 2020, to = 2030, by = 1)) 
+colnames(futurepop) <- "year"
+futurepop$pred_pop.quadratic <- predict(mod.2, newdata = futurepop)
+futurepop$pred_pop.linear <- predict(mod.1, newdata = futurepop)
+
+futurepop<-
+  futurepop%>%
+  rename(pop = pred_pop.quadratic)
+
+futurepop$status <- "pre"
+pop_by_year$status <- "real"
+
+pop.all <- merge(pop_by_year, futurepop, all=T)
+
+ggplot(pop.all, aes(x = year, y = pop, color = factor(status))) +
+  geom_point() + 
+  geom_smooth(method = "loess", size = 1, se = FALSE, show.legend = F) +
+  xlab("Year") +
+  ylab("Population") +
+  scale_colour_manual(name = "Data Type", 
+                      values = c("#bbbbbb", "black"),
+                      labels=c("Prediction", "Actual"))+
+  ggtitle("Fishtown") +
+  theme_bw() +
+  theme(axis.text.y=element_text(size=16),
+        axis.text.x=element_text(size=16),
+        plot.title = element_text(vjust = -7, hjust = 0.50),
+        text = element_text(size=18))
+
+
+
+## Permits
+
+res = GET("https://phl.carto.com/api/v2/sql?q=SELECT * FROM permits WHERE mostrecentinsp >= '2019-01-01' AND mostrecentinsp < '2021-10-31'")
+
+
+## Housing
+
+house_var <- "B25064_001"
+
+get_fishtown_house <- function(year) {
+  get_acs(geography = "tract", 
+          variables = house_var, 
+          year = year,
+          county = "Philadelphia",
+          state = "Pennsylvania"
+  ) %>% 
+    filter(GEOID %in% fishtown_geoids) %>% 
+    summarize(value = mean(estimate)) %>% 
+    mutate(year = year)
+}
+
+housing <-  map_dfr(2009:2019, get_fishtown_house) 
+
+
+get_phil_house <- function(year) {
+  get_acs(geography = "county", 
+          variables = house_var, 
+          year = year,
+          county = "Philadelphia",
+          state = "Pennsylvania"
+  ) %>% 
+    summarize(pop = sum(estimate)) %>% 
+    mutate(year = year)
+}
+
+housing_phil <-  map_dfr(2009:2019, get_phil_house) 
+
+## Building Permits
+
+phi.census <- get_acs(geography = "tract", 
+        variables = "B01003_001", 
+        year = 2019, 
+        state = "PA", 
+        geometry = TRUE, 
+        county=c("Philadelphia"),
+        output = "wide")
+
+phi.census.boundary <- phi.census%>%
+  mutate(tract_name= str_remove_all(NAME, "Philadelphia County, Pennsylvania"))%>%
+  mutate(tract_name = str_remove_all(tract_name, "Census Tract") )%>%
+  mutate(tract_name = str_remove_all(tract_name, ",") )%>%
+  select(tract_name, geometry, GEOID)
+
+phi.census.boundary <- phi.census.boundary%>%
+  st_as_sf()
+
+phi.census.boundary$tract_name <- as.numeric(phi.census.boundary$tract_name)
+
+
+permits <- read.csv("/Users/inordia/Desktop/UPenn搞起来/501/Final/permits.csv")
+
+str(permits)
+
+permits$permitissuedate <- ymd_hms(permits$permitissuedate)
+
+permits <- permits%>%
+  mutate(interval_year = floor_date(permitissuedate, unit = "year"))
+
+permits <- permits %>%
+  group_by(censustract, interval_year) %>%
+  summarise(count = n())
+
+permits <- permits%>%
+  left_join(phi.census.boundary, by = c("censustract"="tract_name"))%>%
+  st_as_sf()
+
+permits$interval_year <- as.character(permits$interval_year)
+
+permits <- permits%>%
+  mutate(interval_year= str_remove_all(interval_year, "-01-01"))
+
+permits.fishtown<- permits%>%
+  filter(censustract == 160.00| censustract == 143.00 | censustract == 158.00)
+
+fishtown_boundary <- st_union(permits.fishtown)
+
+permits.recent <-permits%>%
+  filter(interval_year == "2019"|interval_year == "2020"|interval_year == "2021")
+
+ggplot()+
+  geom_sf(data=permits.recent,
+          aes(fill=q5(count)))+
+  scale_fill_manual(values = palette5,
+                    labels = qBr(permits.recent, "count"),
+                    name = "Number of Permits\n(Quintile Breaks)")+
+  geom_sf(data=fishtown_boundary, colour ="red", fill= "transparent")+
+  facet_wrap(~interval_year,)+
+  mapTheme()
+
+permits.fishtown$censustract <- as.character(permits.fishtown$censustract)
+
+ggplot(data=permits.fishtown, aes(x=interval_year, y=count, group=censustract)) +
+  geom_line(aes(color=censustract))+
+  geom_point(aes(color=censustract))+
+  labs(title = "Number of Permits for Fishtown Census Tracts")
+
+
+permits.fishtown.all <- permits.fishtown%>%
+  group_by(interval_year) %>%
+  summarise(count = sum(count))
+
+ggplot(permits.fishtown.all, aes(x=interval_year, y=count))+
+  geom_line()
+
+ggplot()+
+  geom_sf(data=permits.fishtown, aes(fill=q5(count)))+
+  scale_fill_manual(values = palette5,
+                    labels = qBr(permits, "count"),
+                    name = "Number of Permits\n(Quintile Breaks)")+
+  geom_sf(data=fishtown_boundary, colour ="red", fill= "transparent")+
+  facet_wrap(~interval_year,)+
+  mapTheme()
+
+callowhill <- phi.census.boundary%>%
+  filter(GEOID == "42101037600")
+
+ggplot()+
+  geom_sf(data=phi.census.boundary)+
+  geom_sf(data=callowhill, colour = "red", fill = "transparent")+
+  mapTheme()
+
+write_csv(st_drop_geometry(permits.fishtown.all), "/Users/inordia/Desktop/UPenn搞起来/501/Final/fishtown.permits.csv")
+
+permits.org <- read.csv("/Users/inordia/Desktop/UPenn搞起来/501/Final/permits.csv")
+
+permits.org$permitissuedate <- ymd_hms(permits.org$permitissuedate)
+
+permits.org <- permits.org%>%
+  mutate(interval_year = floor_date(permitissuedate, unit = "year"))
+
+permits.org <- permits.org%>%
+  filter(commercialorresidential == "RESIDENTIAL")%>%
+  filter(censustract == 160.00| censustract == 143.00 | censustract == 158.00)%>%
+  group_by(censustract, interval_year) %>%
+  summarise(count = n())
+
+permits.org$censustract <- as.character(permits.org$censustract)
+
+ggplot(data=permits.org, aes(x=interval_year, y=count, group=censustract)) +
+  geom_line(aes(color=censustract))+
+  geom_point(aes(color=censustract))+
+  scale_color_manual(values = c("#999999", "#E69F00", "#56B4E9"))+
+  labs(title = "Number of Permits for Fishtown Census Tracts")
+
+
+permits.fishtown.res<-permits.org%>%
+  group_by(interval_year) %>%
+  summarise(count = sum(count))
+
+homevalue <- read.csv("/Users/inordia/Desktop/UPenn搞起来/501/Final/homevalue.csv")
+
+medianrent <- read.csv("/Users/inordia/Desktop/UPenn搞起来/501/Final/medianrent.csv")
+
+
+ggplot(data=homevalue, aes(x=Year, y=Value, group=Place)) +
+  geom_line(aes(color=Place))+
+  geom_point(aes(color=Place))+
+  scale_x_continuous(breaks=c(2010,2012,2014,2016,2018))+
+  expand_limits(y=0)+
+  labs(title = "Median Home Value")
+
+ggplot(data=medianrent, aes(x=Year, y=Value, group=Place)) +
+  geom_line(aes(color=Place))+
+  geom_point(aes(color=Place))+
+  scale_x_continuous(breaks=c(2010,2012,2014,2016,2018))+
+  expand_limits(y=0)+
+  labs(title = "Median Gross Rent")
