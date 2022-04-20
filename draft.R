@@ -28,9 +28,10 @@ source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-L
 
 st_c <- st_coordinates
 
-palette5 <- c("#ffffcc","#a1dab4","#41b6c4","#2c7fb8","#253494")
 
-palette4 <- c("#a1dab4","#41b6c4","#2c7fb8","#253494")
+palette5 <- c("#d4b1c6","#c187a9","#a64d79","#83325c","#542345")
+
+palette4 <- c("#d4b1c6","#c187a9","#a64d79","#83325c")
 
 qBr <- function(df, variable, rnd) {
   if (missing(rnd)) {
@@ -560,6 +561,11 @@ mta <- mta %>%
 
 
 plot(density(mta$recover, na.rm=TRUE))
+
+ggplot(mta, aes(x=recover))+
+  geom_histogram(fill="yellow", alpha=0.8, bins= 100)+labs(x="Recovery Rate", y="Density")+
+  ggtitle("Density of Dependent Variable")
+
 plot(log(mta$recover), mta$covid)
 plot(density(log(mta$recover)))
 
@@ -606,12 +612,12 @@ ggplot()+
           ),alpha = 1, color = "transparent", show.legend = "point") +
   scale_size_continuous(
     range = c(1,6),
-    breaks = c(0.01823, 0.33193, 0.40567, 0.46728, 7.357653),
-    labels = qBr(mta, "recover"),
+    breaks = c(0.01823, 0.33193, 0.40567, 0.46728, 6),
+    labels = qBr(mta %>% filter(week < 29), "recover"),
     name = "Recovery Ratio 2021/2019")+
   scale_fill_stepsn(
     colors = palette5,
-    breaks = c(0.01823, 0.33193, 0.40567, 0.46728, 7.357653),
+    breaks = c(0.01823, 0.33193, 0.40567, 0.46728, 6),
     guide = FALSE)+
   labs(title = "Graduated Symbol Map of Recovery Rate", subtitle = "MTA subway stations 2019/2021")+
   facet_wrap(~week)+
@@ -635,7 +641,7 @@ ggplot()+
  
  mta <- 
    mta %>% 
-   arrange(week, complex_id) %>% 
+   arrange(complex_id, week) %>% 
    mutate(lagrecover= dplyr::lag(recover,1),
           lag2recover= dplyr::lag(recover,2),
           lag3recover = dplyr::lag(recover,3),
@@ -686,6 +692,7 @@ ggplot()+
  mta <- mta %>% 
    mutate(crimelog = log(crime+1))
 
+ plot(density(mta$covid, na.rm=TRUE))
  plot(density(log(mta$covid %>% na.omit())))
  
  mta <- mta %>% 
