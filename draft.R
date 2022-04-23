@@ -20,7 +20,7 @@ library(stringr)
 library(car)
 library(stargazer)
 
-setwd("/Users/inordia/Desktop/UPenn搞起来/505/505_final")
+setwd("/Users/inordia/Desktop/UPenn搞起�?/505/505_final")
 
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 
@@ -48,13 +48,13 @@ q5 <- function(variable) {as.factor(ntile(variable, 5))}
 
 ## MTA
 
-mta <- read.csv("mta.csv", check.names = FALSE)
+mta <- read.csv("mta.csv", check.names = FALSE, encoding = "UTF-8")
 
 mta<-mta%>%
   gather(key="week",value="recovery", 3:29)%>%
   na.omit()
 
-remote_complex <- read.csv("remoteID_complex.csv")%>%
+remote_complex <- read.csv("remoteID_complex.csv", encoding = "UTF-8")%>%
   select(remote, complex_id, line_name)
 
 mta <- mta%>%
@@ -144,7 +144,7 @@ mta <- mta%>%
 ## COVID
 
 zip <- st_read("Modified Zip Code Tabulation Areas (MODZCTA).geojson")
-covid<- read.csv("/Users/inordia/Desktop/UPenn搞起来/505/505_final/covid.csv", check.names=FALSE)
+covid<- read.csv("/Users/inordia/Desktop/UPenn搞起�?/505/505_final/covid.csv", check.names=FALSE)
 covid <- tail(covid, -6)
 covid <- covid %>% 
   rename(zip = week_ending)%>%
@@ -703,6 +703,7 @@ ggplot()+
    
  
  ## modeling
+ mta = read.csv("finaldat.csv")
  
  step(lm(recover ~ Borough+Structure+ADA+covid+park3+park1+
            hospital_nn+hospital+office+crimelog+lagrecover+
@@ -781,6 +782,16 @@ ggplot()+
  plot(reg4)
  plot(density(resid(reg4)))
  
+ reg5 <- lm(recover ~ Structure + park3 + hospital_nn + hospital +lagrecover + lag2recover + lag3recover + 
+              lag4recover + lagcovid + lag2covid + lag4covid + line + pct_transit + pct_ptmm + pct_work + logcovid, data=mta %>% na.omit())
+ summary(reg5)
+ 
+ anova(reg5)
+ plot(reg5)
+
+  
+ 
+
  
  
  

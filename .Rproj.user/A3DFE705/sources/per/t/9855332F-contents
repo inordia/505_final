@@ -1,0 +1,604 @@
+---
+title: "Assignmeng3"
+author: "Ran Wang"
+date: "4/5/2022"
+output:
+  html_document:
+    theme: flatly
+    toc: yes
+    toc_float: yes
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, cache = FALSE)
+
+library(tidyverse)
+library(kableExtra)
+library(caret)
+library(knitr) 
+library(pscl)
+library(car)
+library(ggplot2)
+library(dplyr)
+library(stargazer)
+
+options(scipen=999)
+palette2 <- c("#981FAC","#FF006A")
+
+root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
+
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+setwd("/Users/inordia/Desktop/UPenn搞起来/505/Assignment 3")
+
+```
+
+## Question A
+
+### A.1 Data Preparation
+
+```{r a1 data}
+chester <- read.csv("Chester_Urban_Growth.csv")
+
+chester <- chester%>%
+  mutate(CHNG_URB = ifelse(FARM92 == 1 & URBAN01 == 1 | 
+                             PASTURE92 == 1 & URBAN01 == 1 | 
+                             FOREST92 == 1 & URBAN01 == 1, 1, 0))
+
+plot(jitter(chester$CHNG_URB, factor=0.5) ~ chester$DIST_4LNE_,
+     pch= 4, #this decides the shape of points
+     ylab="land use change",
+     xlab="Distance to 4-line roads")
+
+chester.plot <- chester
+chester.plot$CHNG_URB <- as.character(chester.plot$CHNG_URB)
+chester.plot$FOURLNE300 <- as.character(chester.plot$FOURLNE300)
+chester.plot$INTERST800 <- as.character(chester.plot$INTERST800)
+chester.plot$REGRAIL300 <- as.character(chester.plot$REGRAIL300)
+chester.plot$RAILSTN100 <- as.character(chester.plot$RAILSTN100)
+chester.plot$PARKS500M <- as.character(chester.plot$PARKS500M)
+chester.plot$WATER100 <- as.character(chester.plot$WATER100)
+chester.plot$CITBORO_10 <- as.character(chester.plot$CITBORO_10)
+
+
+
+chester.plot %>%
+  dplyr::select(CHNG_URB,SLOPE,DIST_WATER,DIST_RAILS,DIST_REGRA,DIST_PASSR,
+                DIST_4LNE_,DIST_INTER,DIST_PARKS,POPDEN90,MEDINC90,MEDHSEVAL_,
+                PCT_WHITE_,PCT_SFHOME,PCT_POV_90,PCT_HSB_19,PCT_COLGRD) %>%
+  gather(Variable, value, -CHNG_URB) %>%
+  ggplot(aes(CHNG_URB, value, fill=CHNG_URB)) + 
+  geom_bar(position = "dodge", stat = "summary", fun.y = "mean") + 
+  facet_wrap(~Variable, scales = "free") +
+  scale_fill_manual(values = palette2) +
+  labs(x="CHNG_URB", y="Value", 
+       title = "Feature associations with the likelihood of lans use change",
+       subtitle = "(continous outcomes)") +
+  theme(legend.position = "none")
+
+chester.plot %>%
+  dplyr::select(CHNG_URB, FOURLNE300,INTERST800,REGRAIL300,RAILSTN100,PARKS500M,WATER100,CITBORO_10) %>%
+  gather(Variable, value, -CHNG_URB) %>%
+  count(Variable, value, CHNG_URB) %>%
+  ggplot(., aes(value, n, fill = CHNG_URB)) +   
+  geom_bar(position = "fill", stat="identity") +
+  facet_wrap(~Variable, scales="free") +
+  scale_fill_manual(values = palette2) +
+  labs(x="Click", y="Value",
+       title = "Feature associations with the likelihood of lans use change",
+       subtitle = "Categorical features") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### A.2 Modeling
+
+The selection of variables for the binomial logit model is based on the plots that explore the correlation between explanatory variables and the possibility of land use change. While several key variables are identified through plotting, many have two data forms: one as a continuous variable and one as a categorical variable. To further select from categorical and continuous forms of the same data, multiple regression models are developed and the one with lowest AIC is selected.     
+
+The final binomial model includes the following variables:     
+* Distance in meters to a passenger rail line      
+* Average population density of census tract from 1990 Census       
+* If cell is within 1000 meters of a city or borough       
+* If cell is within 300 meters of a SEPTA regional rail line      
+* If cell is within 100 meters of a SEPTA regional rail station      
+* If cell is within 300 meters of a four-lane road      
+
+
+```{r a model}
+
+mod <- glm (CHNG_URB ~ DIST_PASSR+POPDEN90+CITBORO_10+REGRAIL300+RAILSTN100+FOURLNE300,
+            data=chester, family = binomial)
+
+summary(mod)
+
+qchisq(.95, df=6941)  
+qchisq(.95, df=6935) 
+
+anova(mod, test="Chisq")
+
+drop1(mod, test="Chisq")
+
+```
+
+Two chi-square tests, one for the intercept-only model and one for the whole model, show the fitness of the model. The null deviance of the intercept is 2185.6 on 6941 degrees of freedom, smaller than the critical value of 7135.93, and the null deviance of the whole model is 1824.0  on 6935 degrees of freedom, smaller than the critical value of 7129.84. The chi-square tests suggest that the fitted values with just an intercept or with the whole model are not significantly different from the observed values, meaning that the model has a good fit. Further, the null deviance of the whole model is smaller than that of the intercept, meaning that adding explanatory variables to the intercept improves the mode.
+
+ANOVA test is performed to determine if variables improve the performance of the model. As the ANOVA test results show, each explanatory variable statistically significantly improves the model. A backward selection is performed by dropping one variable each time; the change of AIC in the backward selection suggests that the final model has the lowest AIC and is the best model.
+
+```{r a result}
+stargazer(mod, type = "text")
+
+coef <- 100 * (exp(coef(mod))-1)
+
+coef <- as.data.frame(coef)
+colnames(coef) <- "probability"
+
+kable(coef, caption = "Probabilities versus Changes in Independent Variables") %>% 
+  kable_styling("striped", full_width = T)
+```
+
+The regression results are shown above. The model has a generally good fitness to the observed data. While all variables are statistically significant, four variables have a higher statistical significance: the distance to a passenger rail line, the proximity to SEPTA regional rail line, the proximity to SEPTA regional rail station, and the proximity to a four-lane road. A meter increase in the distance to a passenger rail line is associated with a 0.019% decrease in the odds ratio of land use change. If a land is within 300 meters of a SEPTA regional rail line, the odds ratio of land use change would increase by 187%, and If a land is within 100 meters of a SEPTA regional rail station, the odds ratio of land use change would increase by 160%. If a land is within 300 meters of a four-lane road, the odds ratio of land use change would increase by 365%. The strong association between proximity to transportation and the probability of land use change suggests that transportation plays an important role in urban expansion and sprawl. The change of land use from non-urban to urban is likely to happen in places with transportation systems that enable further developments.
+
+Further improvement of the model needs more data on the landscape characteristics besides slope and more demographic information not only on the census tract that the cell falls into but in nearby census tracts to capture the effects of urban expansion. 
+
+## Question B
+
+### B.1 Data Preparation
+
+```{r b data}
+## Data Cleaning
+
+per_dat <- read.csv("/Users/inordia/Desktop/UPenn搞起来/505/Assignment 3/per_pub.csv") # read csv
+trip_dat <- read.csv("/Users/inordia/Desktop/UPenn搞起来/505/Assignment 3/trip_pub.csv") # read csv
+hh_dat <- read.csv("/Users/inordia/Desktop/UPenn搞起来/505/Assignment 3/hh_pub_CSV.csv", header = TRUE)
+
+#let's grab anyone who has one of three modes in their sequence: 
+#bike/non-motorized
+#drive alone 
+#transit
+
+head(trip_dat)
+##let's be a little better about how we select mode
+##you can do better than this, just a few examples:
+##take a look at the TRIP_PUB text file for details about modes
+
+#bike/non-motorized
+trip_dat$bike[trip_dat$TRAN1==14 & is.na(trip_dat$TRAN2)]<-1
+trip_dat$bike[trip_dat$TRAN1==14 & trip_dat$TRAN2==23]<-1
+trip_dat$bike[trip_dat$TRAN1==14 & trip_dat$TRAN2==11]<-1
+trip_dat$bike[trip_dat$TRAN1==14 & trip_dat$TRAN2==12]<-1
+
+trip_dat$bike[trip_dat$TRAN1==23 & is.na(trip_dat$TRAN2)]<-1 #let's include motorcycles
+trip_dat$bike[trip_dat$TRAN1==23 & trip_dat$TRAN2==14]<-1
+trip_dat$bike[trip_dat$TRAN1==23 & trip_dat$TRAN2==11]<-1
+trip_dat$bike[trip_dat$TRAN1==23 & trip_dat$TRAN2==12]<-1
+
+trip_dat$bike[trip_dat$TRAN1==11 & is.na(trip_dat$TRAN2)]<-1
+trip_dat$bike[trip_dat$TRAN1==11 & trip_dat$TRAN2==14]<-1
+trip_dat$bike[trip_dat$TRAN1==11 & trip_dat$TRAN2==23]<-1
+
+trip_dat$bike[trip_dat$TRAN1==12 & is.na(trip_dat$TRAN2)]<-1
+trip_dat$bike[trip_dat$TRAN1==12 & trip_dat$TRAN2==14]<-1
+trip_dat$bike[trip_dat$TRAN1==12 & trip_dat$TRAN2==23]<-1
+
+summary(trip_dat$bike)
+
+#walk
+trip_dat<- trip_dat %>% 
+  mutate(walk = ifelse(trip_dat$TRAN1 == 11, 1, ifelse(trip_dat$TRAN2==11, 1, 0)))
+
+trip_dat$walk[is.na(trip_dat$walk)] <- 0
+
+table(trip_dat$walk)
+
+#carpool
+trip_dat <- trip_dat %>% 
+  mutate(carpool = ifelse(trip_dat$TRAN1 == 31, 1, ifelse(trip_dat$TRAN2==31, 1, 0)))
+trip_dat$carpool[is.na(trip_dat$carpool)] <- 0
+
+table(trip_dat$carpool)
+
+#drive alone
+trip_dat$drivealone[trip_dat$TRAN1==21]<-1
+summary(trip_dat$drivealone)
+
+#assume transit is 
+#47 Trolley, trolley bus
+#48 Jitney
+#51 Subway/elevated (Market-Frankford, Broad St., PATCO)
+#52 Commuter railroad (SEPTA, NJ transit)
+#41 Bus (SEPTA, NJ transit)
+trip_dat$transit[(trip_dat$TRAN1==47)|(trip_dat$TRAN1==48)|(trip_dat$TRAN1==51)|(trip_dat$TRAN1==41) ]<-1
+trip_dat$transit[trip_dat$TRAN2==47|trip_dat$TRAN2==48| trip_dat$TRAN2==51  |trip_dat$TRAN2==41]<-1
+trip_dat$transit[trip_dat$TRAN3==47|trip_dat$TRAN3==48| trip_dat$TRAN3==51  |trip_dat$TRAN3==41]<-1
+trip_dat$transit[trip_dat$TRAN4==47|trip_dat$TRAN4==48| trip_dat$TRAN4==51  |trip_dat$TRAN4==41]<-1
+
+head(trip_dat,20)
+
+## if both are true, let's give it to transit, makes the most sense 
+trip_dat$drivealone[trip_dat$transit==1 & trip_dat$drivealone==1]<-0
+trip_dat$bike[trip_dat$transit==1 & trip_dat$bike==1]<-0
+
+head(trip_dat)
+
+#clean and convert NAs to zero
+trip_dat$drivealone[which(is.na(trip_dat$drivealone))]<-0
+summary(trip_dat$drivealone)
+table(trip_dat$drivealone)
+
+trip_dat$bike[which(is.na(trip_dat$bike))]<-0
+summary(trip_dat$bike)
+table(trip_dat$bike)
+
+trip_dat$transit[which(is.na(trip_dat$transit))]<-0
+summary(trip_dat$transit)
+table(trip_dat$transit)
+
+##clean out any rows where they are all zero 
+trip_dat$SUMZERO<- trip_dat$transit+ trip_dat$bike+trip_dat$drivealone +trip_dat$walk + trip_dat$carpool
+summary(trip_dat$SUMZERO)
+table(trip_dat$SUMZERO)
+
+trip_dat <- trip_dat[-which(trip_dat$SUMZERO == 0), ] 
+
+head(trip_dat, 10)
+
+#now let's pick out that first work trip
+CommuteTripsClean <- trip_dat[which(trip_dat$Dest_PTYE == 2), ] 
+head(CommuteTripsClean)
+
+#combine modes into a single column so that we can plot
+CommuteTripsClean$Commute[CommuteTripsClean$drivealone == 1] <- 1
+CommuteTripsClean$Commute[CommuteTripsClean$bike == 1] <- 2
+CommuteTripsClean$Commute[CommuteTripsClean$transit == 1] <- 3
+CommuteTripsClean$Commute[CommuteTripsClean$walk == 1] <- 4
+CommuteTripsClean$Commute[CommuteTripsClean$carpool == 1] <- 5
+
+#are there NAs?
+table(is.na(CommuteTripsClean$Commute))
+table(CommuteTripsClean$Commute)
+
+#plot frequency of each mode chosen
+hist(CommuteTripsClean$Commute)
+
+################################same as last time
+#let's merge in on person number and SAMPN
+#we have to merge together the SAMPN and the person number
+#there is already a column called X that represents SAMPN + PERNO but this is how you would create it
+CommuteTripsClean$SAMPN_PER <- do.call(paste, c(CommuteTripsClean[c("SAMPN", "PERNO")], sep = ""))
+
+#the following command does the same thing
+#CommuteTripsClean$SAMPN_PER <- paste(CommuteTripsClean$SAMPN, CommuteTripsClean$PERNO, sep = "")
+
+?paste
+?do.call
+?subset
+
+head(CommuteTripsClean)
+
+##but still, some people take multiple work trips. Let's just grab the first work trip
+CommuteTripsClean <- subset(CommuteTripsClean, !duplicated(SAMPN_PER))
+head(CommuteTripsClean, 20)
+
+#let's merge in on person number and SAMPN
+per_hh_dat <- merge(per_dat, hh_dat,
+                    by.x = "SAMPN", 
+                    by.y = "SAMPN", 
+                    all.x = TRUE, 
+                    all.y=FALSE, 
+                    sort = FALSE)
+
+#get rid of columns we don't need
+colnamCleaning<-c("VETMO", "W2TY", "W2TYO",  "W2TYP", "W2LOC", "W2IND", "W2INO", "W2OCC", "W2OCO", "W2DAY", "W2HOM", "W2HOO", "W2ST", "W2ET",  "W1WKD3", "W1WKD4", "W1WKE", "W1WKD1", "W1WKD2")
+per_datClean<-per_hh_dat[ , -which(names(per_dat) %in% colnamCleaning)]
+head(per_datClean)
+
+## we have to merge together the SAMPN and the person number 
+per_datClean$SAMPN_PER <- do.call(paste, c(per_datClean[c("SAMPN", "PERNO")], sep = ""))
+head(per_datClean)
+
+#merge trip with person and household
+CommuteTripsPerson <- merge(CommuteTripsClean, per_datClean,
+                            by.x = "SAMPN_PER", 
+                            by.y = "SAMPN_PER", 
+                            all.x = TRUE, 
+                            all.y=FALSE, 
+                            sort = FALSE)
+dim(CommuteTripsPerson)
+head(CommuteTripsPerson)
+
+
+##let's check there is no one with 2 yes: 
+CommuteTripsPerson$check<-CommuteTripsPerson$transit+CommuteTripsPerson$drivealone+CommuteTripsPerson$bike
+max(CommuteTripsPerson$check)
+
+#all set
+
+##finally, we can think about modeling 
+#keep only useful variables
+varsInterest <- c("SAMPN", "PERNO", "AGE", "GEND", "INCOME", "DISAB", "SAMPN_PER", "TOLLA", "TOLL","PARK","PARKC", "PARKU", "PRKUO", "TRPDUR", "W1OCC", "drivealone", "bike", "transit", "walk", "carpool", "Commute")
+CommuteTripsPerson<-CommuteTripsPerson[ , which(names(CommuteTripsPerson) %in% varsInterest)]
+head(CommuteTripsPerson)
+
+#getting rid of NAs in income
+CommuteTripsPerson<-CommuteTripsPerson[-which(is.na(CommuteTripsPerson$INCOME)),]
+head(CommuteTripsPerson)
+
+#feature-engineering
+
+CommuteTripsPerson$PARK <- as.character(CommuteTripsPerson$PARK)
+CommuteTripsPerson$PARK[which(is.na(CommuteTripsPerson$PARK))]<-0
+CommuteTripsPerson$TOLL[which(is.na(CommuteTripsPerson$TOLL))]<-2
+CommuteTripsPerson$TOLL <- as.character(CommuteTripsPerson$TOLL)
+CommuteTripsPerson$GEND <- as.character(CommuteTripsPerson$GEND)
+CommuteTripsPerson$W1OCC <- as.character(CommuteTripsPerson$W1OCC)
+
+
+CommuteTripsPerson <- CommuteTripsPerson %>% 
+  mutate(PARKC.total = ifelse(PARKU == 1, PARKC*8760, ifelse(PARKU == 2, PARKC*365, 
+                                                             ifelse(PARKU == 3, PARKC*52,
+                                                                    ifelse(PARKU == 4, PARKC*12,
+                                                                           PARKC)))))
+
+CommuteTripsPerson$PARKC.total[which(is.na(CommuteTripsPerson$PARKC.total))]<-0
+
+CommuteTripsPerson <- CommuteTripsPerson %>% 
+  mutate(age.old = ifelse(AGE > 60, "yes", "no"))
+
+```
+
+### B.2 Binomial Driving to Work
+
+The binomial model for driving to work includes the following variables:     
+*Age    
+*Income    
+*Trip Duration     
+*Parking Location      
+
+Two chi-square tests suggest that the model has a good fitness for the observed data. The null deviance for the intercept is 1929.92 on 2923 degrees of freedom, smaller than the critical value of 3049.891, suggesting that the fitted value with only the intercept is not significantly different from the observed values. The null deviance for the whole model is 155.78 on 2914  degrees of freedom, significantly smaller than the critical value of 3040.697 and the null deviance for the intercept; this means that the final model has good fitness and performs better than the intercept. The predicted results based on the model has an accuracy rate higher than 99% accurate if any probability higher than 0.5 is considered a "yes" for driving to work.
+
+The ANOVA test results show that each explanatory variable statistically significantly improves the model. The change of AIC in the backward selection suggests that the final model has the lowest AIC and is the best model.
+
+The tables below show the regression results. While all variables are statistically significant, trip duration and parking location has the highest p-values. One unit increase in trip duration is associated with a 1.67% decrease in the odds ratio of driving to work. Parking lot as the parking location is associated with4490862% increase in the odds ratio of driving to work would. The relationship between parking location and commuting modes is less clear for interpretation; it is possible that most people who drive to work park in parking lots. For other statistically significant variables, one unit increase in age is associated with 0.26% decrease in the odds ratio of driving to work potentially because seniors find it more difficult to drive; one unit increase in income is associated with 0.0015% decrease in the odds ratio of driving to work potentially due to the work and home locations for higher-income people. 
+
+
+
+```{r drive}
+
+mod1 <- glm ( drivealone ~ AGE+INCOME+TRPDUR+PARK, data=CommuteTripsPerson, family = binomial)
+summary(mod1)
+
+qchisq(.95, df=2901)  
+qchisq(.95, df=2892) 
+
+anova(mod1, test="Chisq")
+
+drop1(mod1, test="Chisq")
+
+coef <- 100 * (exp(coef(mod1))-1)
+
+coef <- as.data.frame(coef)
+colnames(coef) <- "probability"
+
+kable(coef%>%slice(1:4,7), caption = "Probabilities versus Changes in Independent Variables") %>% 
+  kable_styling("striped", full_width = T)
+
+#predicting
+
+pred1 <- as.data.frame(fitted(mod1))
+pred1 <- rename(pred1, "prob" = "fitted(mod1)")
+pred1 <- mutate(pred1, "binary" = ifelse(prob < 0.5, 0, 1))
+
+#append column to original data frame
+CommuteTripsPerson$binary.drive <- pred1$binary
+
+(sum(CommuteTripsPerson$drivealone == 1 & CommuteTripsPerson$binary.drive == 1) + sum(CommuteTripsPerson$drivealone == 0 & CommuteTripsPerson$binary.drive == 0)) / nrow(CommuteTripsPerson)
+
+```
+
+### B.3 Binomial Walking or Biking to Work
+
+The binomial model for walking or biking to work includes the following variables:      
+*Trip Duration     
+*Occupation and Income       
+
+Two chi-square tests suggest that the model has a good fitness for the observed data. The null deviance for the intercept is 1024.54 on 2901 degrees of freedom, smaller than the critical value of 3027.417, and the null deviance for the whole model is 920.26 on 2885 degrees of freedom, smaller than the critical value of 3011.071. Compared with the driving model, the intercept of the biking and walking model has a better fit of the observed values but the whole model has a worse fit of the observed values. The ANOVA test results show that each explanatory variable statistically significantly improves the model. The change of AIC in the backward selection suggests that the final model has the lowest AIC and is the best model. However, the AIC of the biking and walking model is 954.26, significantly higher than the 175.41 AIC of the driving model. In general, the driving model is a better model than the biking and walking model, potentially because less than 5% of the total observations chose biking and walking and the sample size is too small to develop a good model. But the biking model also has an accuracy rate higher than 99% if a predicted probability higher than 0.5 is consider a "yes" to biking to work. 
+
+The tables below show the regression results of the biking and walking model. The trip duration is the most significant factor; each unit increase in the trip duration is associated with a 6.18% decrease in the odds ratio of walking and biking to work. The decrease in odds ratio for one unit increase in trip duration is larger for walking and biking compared to the driving model; this is reasonable considering that time can be less valuable in driving that usually has a longer duration. Another statistically significant factor is the interaction between income and occupation. For a person with occupation in administrative support and clerical work, each unit increase in income is associated with a 0.01% decrease in the odds ratio of walking and biking to work. Age, a factor that is significant for driving, is not statistically significant in the walking and biking model although one would assume that older people are less likely to walk and bike; this might be a result of limited sample size or the fact that older people do not need to commute anymore.
+
+
+```{r bike}
+mod2 <- glm ( bike ~ TRPDUR+W1OCC:INCOME, data=CommuteTripsPerson, family = binomial)
+summary(mod2)
+
+qchisq(.95, df=2901)  
+qchisq(.95, df=2885) 
+
+anova(mod2, test="Chisq")
+drop1(mod2, test="Chisq")
+
+coef <- 100 * (exp(coef(mod2))-1)
+
+coef <- as.data.frame(coef)
+colnames(coef) <- "probability"
+
+kable(coef%>%slice(1:2,9,11), caption = "Probabilities versus Changes in Independent Variables") %>% 
+  kable_styling("striped", full_width = T)
+
+#predicting
+
+pred2 <- as.data.frame(fitted(mod2))
+pred2 <- rename(pred2, "prob" = "fitted(mod2)")
+pred2 <- mutate(pred2, "binary" = ifelse(prob < 0.5, 0, 1))
+
+#append column to original data frame
+CommuteTripsPerson$binary.bike <- pred2$binary
+
+
+(sum(CommuteTripsPerson$bike == 1 & CommuteTripsPerson$binary.bike == 1) + sum(CommuteTripsPerson$bike == 0 & CommuteTripsPerson$binary.bike == 0)) / nrow(CommuteTripsPerson)
+```
+
+
+### B.4 Multinomial Mode Choice
+
+To develop multinomial logistic regression for mode choices, I first prepare the data with estimated cost and time for alternative modes that could have taken place but didn’t. To estimate the cost and trip duration for alternative modes, I assume average speeds and average costs for each mode per mile. The final model includes the following variables:    
+
+*Trip Duration     
+*Trip Cost     
+*Age      
+*Income     
+*Gender     
+
+
+```{r multi}
+Biking<-CommuteTripsPerson[which(CommuteTripsPerson$bike ==1),]
+Drivealone<-CommuteTripsPerson[which(CommuteTripsPerson$drivealone ==1),]
+Transit<-CommuteTripsPerson[which(CommuteTripsPerson$transit ==1),]
+Walk<-CommuteTripsPerson[which(CommuteTripsPerson$walk ==1),]
+Carpool<-CommuteTripsPerson[which(CommuteTripsPerson$carpool ==1),]
+
+Drivealone <- Drivealone %>%
+  filter(Commute == 1)
+Transit <- Transit %>% 
+  filter(Commute == 3)
+
+#double check and see if each data set indeed only has information for one mode
+table(Biking$Commute)
+table(Drivealone$Commute)
+table(Walk$Commute)
+table(Transit$Commute)
+
+#take a look at trip duration.
+#it is likely in minutes
+summary(Biking$TRPDUR)
+summary(Drivealone$TRPDUR) #someone drove 8 hours to work! Alone!
+summary(Transit$TRPDUR)
+
+#distance = speed * time in minutes
+Drivealone$distance<-(30/60)*Drivealone$TRPDUR
+head(Drivealone)
+Biking$distance<-(12/60)*Biking$TRPDUR
+head(Biking)
+Transit$distance<-(25/60)*Transit$TRPDUR
+Walk$distance<-(4/60)*Walk$TRPDUR
+Carpool$distance<-(30/60)*Carpool$TRPDUR
+
+
+#re-combine the three data sets 
+dat<-rbind(Biking, Transit, Drivealone, Walk, Carpool)
+head(dat)
+
+#now we can calc a trip duration on every mode
+#in other words, this is what the trip duration WOULD be if the person had chosen each mode
+dat$time.auto <-dat$distance/30
+dat$time.bike <- dat$distance/12
+dat$time.transit <- dat$distance/25
+dat$time.walk <- dat$distance/4
+dat$time.carpool <- dat$distance/30
+
+head(dat)
+
+##adding travel cost
+dat$cost.auto <-dat$distance*0.7
+dat$cost.bike <- dat$distance*0.2
+dat$cost.transit <- 2.5
+dat$cost.walk <- 0
+dat$cost.carpool <- dat$distance*0.35
+
+#add a variable to enable us to recast the data later on
+dat$mode[dat$bike == 1] <- "bike"
+dat$mode[dat$transit == 1] <- "transit"
+dat$mode[dat$drivealone == 1] <- "auto"
+dat$mode[dat$walk == 1] <- "walk"
+dat$mode[dat$carpool == 1] <- "carpool"
+head(dat)
+
+#the row indices are messed up because of the subsets we did
+#need to fix them
+rownames(dat) <- NULL 
+head(dat)
+table(dat$mode)
+
+varsInterest <- c("AGE", "GEND", "INCOME","DISAB", "W1OCC", "age.old", "time.auto", "time.bike", "time.transit", "time.walk", "time.carpool", 
+                  "mode",  "cost.auto", "cost.bike", "cost.transit", "cost.walk", "cost.carpool")
+dat.multi<-dat[ , which(names(dat) %in% varsInterest)]
+head(dat.multi)
+
+dat.multi <- dat.multi %>% 
+  filter(GEND != 9)
+
+table(dat.multi$mode)
+
+dat.multi <- dat.multi %>% 
+  mutate(age.old = ifelse(age.old== "no", 0 , 1))
+
+require(mlogit)
+
+#let's try... 
+head(dat.multi)
+datMNL <- mlogit.data(dat.multi, shape="wide", choice="mode", varying=c(7:16))
+
+#check it! 
+head(datMNL, 20)
+
+mod.int <- mlogit (mode ~ 1, data = datMNL)
+summary(mod.int)
+
+
+mod3 <- mlogit (mode ~ time, data = datMNL)
+summary(mod3)
+
+mod4 <- mlogit (mode ~ time | INCOME + GEND, data = datMNL)
+summary(mod4)
+
+mod5 <- mlogit (mode ~ time | AGE+ INCOME + GEND, data = datMNL)
+summary(mod5)
+
+mod6 <- mlogit (mode ~ time+cost | AGE+ INCOME + GEND, data = datMNL)
+summary(mod6)
+
+lrtest(mod3, mod4, mod5, mod6)
+
+stargazer(mod.int, mod3, mod4, mod5, mod6, type = "text")
+
+coef <- 100 * (exp(coef(mod6))-1)
+
+coef <- as.data.frame(coef)
+colnames(coef) <- "probability"
+
+kable(coef, caption = "Probabilities versus Changes in Independent Variables") %>% 
+  kable_styling("striped", full_width = T)
+
+#predicting
+pred3 <- as.data.frame(fitted (mod6, outcome=TRUE))
+#rename for ease purposes
+pred3 <- rename(pred3, "prob" = "fitted(mod6, outcome = TRUE)")
+
+#calculate 0 or 1 based on the probability
+pred3 <- mutate(pred3, "binary" = ifelse(prob < 0.25, 0, 1))
+
+#1: the prediction is correct
+#0: the prediction is incorrect
+
+#accuracy rate - 93%! - pretty high - yay!
+sum(pred3$binary) / nrow(pred3)
+
+#predicting by mode
+pred4 <- as.data.frame(fitted (mod6, outcome=FALSE))
+
+#combine with the original data set
+datMNL$pred_prob_auto <- pred4$auto
+datMNL$pred_prob_bike <- pred4$bike
+datMNL$pred_prob_carpool <- pred4$carpool
+datMNL$pred_prob_transit <- pred4$transit
+datMNL$pred_prob_walk <- pred4$walk
+
+
+```
+
+The final model has the lowest log-likelihood as the ratio test shows, suggesting that the final model has the best fitness. The intercepts of bike, carpool, and transit are negative, suggesting that these modes are inherently less attractive than driving, while the positive intercept for walk suggests that walk is inherently more attractive than driving. Trip duration is statistically significant, and each one unit increase in trip duration is associated with a 99% decrease in the odds ratio of choosing any mode other than driving; the model suggests that one is significantly less likely to commute by bike, transit, carpool, and walk as travel time increases, controlling for other variables. One unit increase in the travel cost is associated with a 14% decrease in the odds ratio of taking other modes than driving; one is statistically significantly more likely to drive alone to work as the travel cost increases, controlling for other variables. Besides mode-specific variables, age, income, and gender are statistically significant for specific modes. One year increase in age is associated with a 4% decrease in the odds ratio for biking to work than driving, potentially due to the difficulty of biking for the senior population. One thousand dollar increase in income is associated with a 1.8% decrease in the odds ratio for taking transit to work than driving. Being a woman is associated with a 75% decrease in the odds ratio for biking to work than driving, and this corresponds to the heavily-skewed gender composition for cyclists in the U.S. On the other hand, being a woman is associated with a 95% increase in the odds ratio for taking transit to work rather than driving, controlling for other variables.
+
+The accuracy of the model is 93.7%, suggesting that the model performed relatively well. However, the detailed predicted probabilities show that the model performed very well at predicting auto commute trips and always gave a high likelihood for driving but performed poorly on modes other than driving. Because auto trips constituted more than 89% of total observations, the predicted accuracy rate still looks fine even when the model performed poorly on predicting none-auto trips.
+
+Additional mode-specific variables can further improve the model. For example, waiting time is an important factor for mode decisions specifically for transit and can contribute to the model. Other mode-specific variables include comfort levels and more accurate costs. 
+
+
