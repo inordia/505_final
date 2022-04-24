@@ -58,7 +58,16 @@ q5 <- function(variable) {as.factor(ntile(variable, 5))}
 
 ## 1 Introduction
 
-## 2 Data Wrangling
+Since the start of the COVID-19 pandemic, public transit systems in the U.S. have faced severe challenges as ridership plummeted. Recovering ridership became a key for the survival of many public transit systems. This project aims to explore factors that influence the ridership recovery of public transit systems to better design policies that foster ridership recovery, using the case of MTA subway in New York City.      
+
+MTA experienced a shrinkage in ridership when the pandemic started, and the ridership recovery was stumbling with ups and downs throughout the time. A more disturbing trend is the rise in violence related to transit; transit crimes are up 65.5 percent over the first two weeks of 2022 compared to the same period last year. On January 15th 2022, an Asian woman was killed after being pushed in front of a moving subway train at Times Square station, and on April 12th, a man set off smoke grenades in a crowded subway car and then opened fire, injuring at least 23 people. A rise in random attacks scared off passengers in droves and was likely to worsen the stumbled ridership recovery due to the commuting shift to work-from-home. But MTA’s long-term survival depends on the return of riders and fares which make up nearly 40% of MTA’s operating revenue. Therefore, it is crucial that research looks into the impacts of various aspects of the pandemic on transit ridership recovery. This project will explore what factors influence the ridership recovery of MTA subway in post-pandemic New York.      
+
+This project uses data from various sources including MTA weekly fare data, New York open data, OpenStreetMap, and ACS. We then developed a group of time-series regression models to explore the relationship between potential explanatory variables and ridership recovery ratios for subway stations. We identified the best model and discussed its implications and limitations.      
+
+
+## 2 Data Wrangling     
+
+Data for this project is collected from MTA, New York open data, NYCHealth, OpenStreetMap, and ACS. Specifically, we cleaned the MTA weekly fare data into the ridership recovery ratios of 2021 comparable to 2019 pre-pandemic ridership for every station complex between week 23 to week 49, approximately from June to November. We select this time frame to avoid the holiday season in December. We could not use 2022 ridership data because other data such as crime were not available for 2022. We then spatially join other data such as crime, COVID cases, and demographics to MTA stations to create the table for regression. We also calculate the distance from stations to nearest n key trip generators such as parks and hospitals, and the number of key trip generators that fall into the buffer of stations.     
 
 ```{r mta}
 mta <- read.csv("mta.csv", check.names = FALSE, encoding = "UTF-8")
@@ -571,7 +580,9 @@ mta <- mta %>%
 
 ## 3 Exploratory Analysis
 
-### 3.1 Dependent Variable
+### 3.1 Dependent Variable    
+
+The dependent variable for this project is the ridership recovery rate at station level by week. The density plot below shows that the distribution of the dependent variable is a normal distribution with some outliers on the right.
 
 ```{r dependent}
 plot(density(mta$recover, na.rm=TRUE))
@@ -580,6 +591,8 @@ summary(mta$recover)
 ```
 
 ### 3.2 Spatial Autocorrelation
+
+The dependent variable has a spatial autocorrelation process in which stations with higher or lower recovery ratios tend to cluster together. As the map below shows, stations in Brooklyn and Bronx have higher average recovery rates compared to stations in lower Manhattan.
 
 ```{r average}
 mta <- mta %>% 
@@ -613,6 +626,9 @@ ggplot()+
 ```
 
 ### 3.3 Time Fluctuation
+
+The dependent variable also shows fluctuations throughout time. The plot below shows the system-wide average recovery ratio across the study period and there’s fluctuations–at the highest point of 0.6 and the lowest point of 0.35– that this project attempts to understand.
+
 
 ```{r average time}
 ggplot()+
@@ -653,6 +669,8 @@ ggplot()+
 
 ### 3.4 Lag Variables
 
+Considering that some factors such as COVID can have a lagging effect on the subway ridership, we then develop the time-lag feature based on the recovery ratio, crimes, and COVID cases of each station in the previous time period. For example, a time lag of one week for COVID is the COVID cases of that station’s ZIP area a week ago. The correlation between lag variables and the dependent variable is shown in the table below. The high correlation between ridership recovery rate lag variables and the dependent variable suggests that better ridership recovery for a station in previous weeks corresponds to higher ridership recovery rate in later time periods. The correlation decreases as time lag is longer, suggesting that the lagging effects fade as the time goes.    
+
 ```{r lag}
  mta <- 
    mta %>% 
@@ -689,7 +707,6 @@ ggplot()+
 
 ```{r feature engineer}
  plot(density(mta$crime, na.rm=TRUE))
- plot(log(mta$crime), mta$covid)
  plot(density(log(mta$crime)))
  
  mta <- mta %>% 
@@ -706,6 +723,8 @@ ggplot()+
 
 
 ### 3.6 Correlation
+
+We log-transformed some variables to make their distribution more normal and more suitable for linear regression. As the plots below show, log-transformed crime and COVID variables have more normal distribution.   
 
 ```{r cor}
  mta.cor <- mta %>% 
