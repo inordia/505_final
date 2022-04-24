@@ -1,0 +1,77 @@
+---
+title: "505 Final"
+author: "Ran Wang,Yunfan Xu"
+date: "4/23/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, cache = FALSE)
+
+library(tidyverse)
+library(sf)
+library(lubridate)
+library(tigris)
+library(tidycensus)
+library(viridis)
+library(riem)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(RSocrata)
+library(FNN)
+library(mapview)
+library(gifski)
+library(RSocrata)
+library(leaflet)
+library(osmdata)
+library(corrplot)
+library(stringr)
+library(car)
+library(stargazer)
+
+setwd("/Users/inordia/Desktop/UPenn搞起???/505/505_final")
+
+root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
+
+source("https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/functions.r")
+
+st_c <- st_coordinates
+
+palette5 <- c("#d4b1c6","#c187a9","#a64d79","#83325c","#542345")
+
+palette4 <- c("#d4b1c6","#c187a9","#a64d79","#83325c")
+
+qBr <- function(df, variable, rnd) {
+  if (missing(rnd)) {
+    as.character(quantile(round(df[[variable]],3),
+                          c(.01,.2,.4,.6,.8), na.rm=T))
+  } else if (rnd == FALSE | rnd == F) {
+    as.character(formatC(quantile(df[[variable]],
+                                  c(.01,.2,.4,.6,.8), na.rm=T), digits = 3))
+  }
+}
+
+
+q5 <- function(variable) {as.factor(ntile(variable, 5))}
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

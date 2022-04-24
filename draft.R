@@ -20,7 +20,7 @@ library(stringr)
 library(car)
 library(stargazer)
 
-setwd("/Users/inordia/Desktop/UPenn搞起�?/505/505_final")
+setwd("/Users/inordia/Desktop/UPenn搞起???/505/505_final")
 
 root.dir = "https://raw.githubusercontent.com/urbanSpatial/Public-Policy-Analytics-Landing/master/DATA/"
 
@@ -144,7 +144,7 @@ mta <- mta%>%
 ## COVID
 
 zip <- st_read("Modified Zip Code Tabulation Areas (MODZCTA).geojson")
-covid<- read.csv("/Users/inordia/Desktop/UPenn搞起�?/505/505_final/covid.csv", check.names=FALSE)
+covid<- read.csv("/Users/inordia/Desktop/UPenn搞起???/505/505_final/covid.csv", check.names=FALSE)
 covid <- tail(covid, -6)
 covid <- covid %>% 
   rename(zip = week_ending)%>%
@@ -708,7 +708,10 @@ ggplot()+
  step(lm(recover ~ Borough+Structure+ADA+covid+park3+park1+
            hospital_nn+hospital+office+crimelog+lagrecover+
            lag2recover+lag3recover+lag4recover+lagcrime+
-           lag2crime+lagcovid+lag2covid+lag3covid+lag4covid, data=mta),
+           lag2crime+lagcovid+lag2covid+lag3covid+lag4covid+line+
+           total_popE+pct_transit+median_incE+median_inc_fE+
+           pct_mbas+pct_service+pct_sale_office+pct_military+
+           pct_w+pct_ptmm+pct_ncm+pct_work+logcovid, data=mta),
       direction="backward")
  
  reg.base <- lm(recover ~ Borough+Structure+ADA+covid+park3+park1+
@@ -781,17 +784,36 @@ ggplot()+
  
  plot(reg4)
  plot(density(resid(reg4)))
- 
+
  reg5 <- lm(recover ~ Structure + park3 + hospital_nn + hospital +lagrecover + lag2recover + lag3recover + 
               lag4recover + lagcovid + lag2covid + lag4covid + line + pct_transit + pct_ptmm + pct_work + logcovid, data=mta %>% na.omit())
  summary(reg5)
  
  anova(reg5)
  plot(reg5)
+ vif(reg5)
 
-  
+ anova(reg.base, reg5)
  
+ step(lm(recover ~ Structure + park3 + hospital_nn + hospital +lagrecover + lag2recover + lag3recover + 
+           lag4recover + lagcovid + lag2covid + lag4covid + line + pct_transit + pct_ptmm + pct_work + logcovid, data=mta %>% na.omit()),
+      direction="backward")
+ 
+ reg6 <- lm(recover ~ Structure + park3 + hospital_nn + hospital + lagrecover + 
+               lag2recover + lag3recover + lag4recover + lagcovid + lag2covid + 
+               lag4covid + line + pct_transit + median_inc_fE + pct_sale_office + 
+               pct_ptmm  + pct_work + logcovid, data=mta %>% na.omit())
+ summary(reg6)
+ 
+ anova(reg6)
+ plot(reg6)
+ vif(reg6)
+ 
+ anova(reg.base, reg6)
+ 
+ anova(reg5, reg6)
 
- 
- 
+
+write_csv(mta, "/Users/inordia/Desktop/UPenn搞起来/505/505_final/finaldat.csv")
+
  
