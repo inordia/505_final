@@ -767,6 +767,29 @@ reg.base <- lm(recover ~ Borough+Structure+ADA+covid+park3+park1+
 
 ### 4.2 Final Model
 
+Variables Selected
+
+* **Structure**: the structure of the station       
+* **Park3**: the average distance from a station to its nearest three parks        
+* **Hospital_nn**: the distance from a station to its nearest hospital        
+* **Hospital**: how many hospitals are within a 8000ft buffer around the station        
+* **Lagrecover**: recovery rate one week ago      
+* **Lag2recover**: recovery rate two weeks ago      
+* **Lag3recover**: recovery rate three weeks ago       
+* **Lag4recover**: recovery rate four weeks ago       
+* **Lagcovid**: COVID cases per 10,000 people in the station’s ZIP Code Area one week ago       
+* **Lag2covid**: COVID cases per 10,000 people in the station’s ZIP Code Area two weeks ago
+* **Lag4covid**: COVID cases per 10,000 people in the station’s ZIP Code Area four weeks ago           
+* **Line**: the number of subway lines running through the station       
+* **Pct_transit**: percentage of workers commute by transit in the station’s census tract        
+* **median_inc_fE**: median family income in the station’s census tract       
+* **Pct_sale_office**: percentage of people with sale and office occupations in the station’s census tract        
+* **Pct_ptmm**: percentage of people with production and transportation occupations in the station’s census tract       
+* **Pct_wor*k**: percentage of working population in the station’s census tract       
+* **Logcovid**: log of COVID cases per 10,000 people in the station’s ZIP Code Area       
+
+
+
 ```{r reg, results='asis'}
 #reg1 only static data of station features and key trip generators
 reg1 <- lm(recover ~ Structure + park3 + hospital_nn + hospital+ line , data=mta %>% na.omit())
