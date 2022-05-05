@@ -722,6 +722,7 @@ ggplot()+
                pct_mbas+pct_service+pct_sale_office+pct_military+
                pct_w+pct_ptmm+pct_ncm+pct_work+logcovid, data=mta)
  summary(reg.base)
+ stargazer(reg.base, type = "text")
  
  reg1 <- lm(recover ~ Borough+Structure+logcovid+
              hospital_nn+office+lagrecover+hospital+
@@ -803,7 +804,7 @@ ggplot()+
                lag2recover + lag3recover + lag4recover + lagcovid + lag2covid + 
                lag4covid + line + pct_transit + median_inc_fE + pct_sale_office + 
                pct_ptmm  + pct_work + logcovid, data=mta %>% na.omit())
- summary(reg6)
+ summary(reg6) #FINAL Model
  
  anova(reg6)
  plot(reg6)
@@ -812,8 +813,41 @@ ggplot()+
  anova(reg.base, reg6)
  
  anova(reg5, reg6)
-
-
-write_csv(mta, "/Users/inordia/Desktop/UPenn搞起来/505/505_final/finaldat.csv")
-
+ plot(reg5)
  
+ reg7 <- lm(recover ~ Structure + park3 + hospital_nn + lagrecover + 
+              lag2recover + lag3recover + lagcovid + lag2covid + 
+              line + pct_transit + median_inc_fE  + 
+              pct_ptmm  + pct_work + logcovid, data=mta %>% na.omit())
+ summary(reg7)
+
+ write_csv(mta, "/Users/inordia/Desktop/UPenn搞起�?/505/505_final/finaldat.csv")
+
+ reg.base <- lm(recover ~ Borough+Structure+ADA+covid+park3+park1+
+                  hospital_nn+hospital+office+crimelog+lagrecover+
+                  lag2recover+lag3recover+lag4recover+lagcrime+
+                  lag2crime+lagcovid+lag2covid+lag3covid+lag4covid+line+
+                  total_popE+pct_transit+median_incE+median_inc_fE+
+                  pct_mbas+pct_service+pct_sale_office+pct_military+
+                  pct_w+pct_ptmm+pct_ncm+pct_work+logcovid, data=mta)
+ #reg1 only static data of station features and key trip generators
+ reg1 <- lm(recover ~ Structure + park3 + hospital_nn + hospital+ line , data=mta %>% na.omit())
+ 
+ #reg2 static data of station features and key trip generators + lag data
+ reg2 <- lm(recover ~ Structure + park3 + hospital_nn + hospital + lagrecover + 
+              lag2recover + lag3recover + lag4recover + lagcovid + lag2covid + 
+              lag4covid + line+ logcovid, data=mta %>% na.omit())
+ 
+ #reg3 static data of station features, key trip generators, and demographics + lag data
+ 
+ reg3 <- lm(recover ~ Structure + park3 + hospital_nn + hospital + lagrecover + 
+              lag2recover + lag3recover + lag4recover + lagcovid + lag2covid + 
+              lag4covid + line + pct_transit + median_inc_fE + pct_sale_office + 
+              pct_ptmm  + pct_work + logcovid, data=mta %>% na.omit())
+ 
+ stargazer(reg.base, reg1, reg2, reg3, type ="html", font.size = "small", single.row = TRUE)
+ 
+ anova(reg1, reg2, reg3)
+ anova(reg3)
+ vif(reg3)
+ plot(reg3)

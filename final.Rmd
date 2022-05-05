@@ -742,6 +742,8 @@ We log-transformed some variables to make their distribution more normal and mor
 
 ### 4.1 Variable Selection
 
+For selecting the final variables, we construct a basic time-series regression model using all the collected variables against the MTA ridership recovery to determine which of them are statistically significant. The basic model indicates that some variables such as hospital location, have a p-value less than 0.1, and some variables like the park location have a p-value less than 0.05, while variables like percentage of production, transportation, and management workers have p-values less than 0.01. These p-values which are less than 0.1 prove that the corresponding variables are statistically significant to our research. Moreover, we conduct a backward selection to better select the variables. The result of backward selection suggests similar significant variables as the selection based on p-value, which includes the percentage of workers of certain types of occupations, station structure, median family income, lagged Covid data, and lagged recovery data.
+
 ```{r base reg}
 reg.base <- lm(recover ~ Borough+Structure+ADA+covid+park3+park1+
              hospital_nn+hospital+office+crimelog+lagrecover+
@@ -767,7 +769,7 @@ reg.base <- lm(recover ~ Borough+Structure+ADA+covid+park3+park1+
 
 ### 4.2 Final Model
 
-Variables Selected
+Combined the result of the p-value and backward selection, we have the following variables selected for constructing statistical models：
 
 * **Structure**: the structure of the station       
 * **Park3**: the average distance from a station to its nearest three parks        
@@ -788,6 +790,11 @@ Variables Selected
 * **Pct_wor*k**: percentage of working population in the station’s census tract       
 * **Logcovid**: log of COVID cases per 10,000 people in the station’s ZIP Code Area       
 
+The first time-series regression model contains only the different structural features of stations and key trip generators like hospitals and parks. The results indicate station features of elevated and opencut are statistically significant to the MTA ridership recovery with p-values less than 0.01, and that the ridership will increase by 4% and 6.6% respectively. A viaduct is also a statistically significant feature for stations with a p-value less than 0.05, that each viaduct station will reflect a 3.4% in the ridership recovery. The number of hospitals and subway lines, and the average distance to the nearest 3 parks are also significant in this model that each increase in these variables will result in a 0.04% decrease, 1.3% decrease, and 0.001% increase in the recovery respectively. The model has an R-square value of 0.043.
+
+The second model adds the lagged covid and recovery data to the previous model. It has an R-square of 0.217, which shows an improvement from the first one. In this model, the station features of elevated and viaduct are no longer statistically significant with p-values larger than 0.1, but the number of hospitals and subway lines, the average distance to the nearest 3 parks, and opencut stations remain significant. This model indicates that all the lag data are statistically significant with -p-values less than 0.01. For example, for the recovery data, each increase in the recovery one week ago will reflect a 25% increase in the ridership recovery of the current week, and each increase in the recovery two weeks ago will reflect a 17.6% increase in recovery in the current week. For the Covid data, each increase in Covid cases per 10,000 people of the zip code area of a station one week ago will result in a 0.02% increase in the ridership recovery, and the increase two weeks ago will result in a 0.01% decrease in the recovery.
+
+We add demographic data to the second model to construct the next model, which includes the percentage of commuters using public transit, median family income, and the percentages of the working population and different types of occupation. All the significant variables in the second model remain vital in this model, and some of the new variables express their importance in the result. With a p-value less than 0.01, each increase in the percent of commuters using public transit will result in a 3.9% increase in the ridership recovery. Although each increase in the percent of the working population will result in a 1% decrease in the ridership recovery, each increase in the percentage of workers in the production, transportation, and management industries will result in a 12.3% recovery of the MTA ridership, and each increase in the percentage of workers in sales and office jobs will reflect a 4% increase in the recovery. The model has an R-square value of 0.23 which means it explains 23% of the data and becomes the highest R-square value of all the models. Also, the ANOVA test of the three models indicates this one to be the best model. Meanwhile, the ANOVA test of this model shows that each variable has improved the model, and the result of the VIF test determines low correlations between the variables. Thus, we choose this model as our final model for explaining the ridership recovery of MTA.
 
 
 ```{r reg, results='asis'}
@@ -818,3 +825,6 @@ reg3 <- lm(recover ~ Structure + park3 + hospital_nn + hospital + lagrecover +
  plot(reg3)
 ```
 
+## 5 Summary
+
+According to the final model, an opencut station will have more riders compared with stations with other features, and more numbers of hospitals will reflect a slight decrease in the recovery. The increase of Covid cases will decrease ridership three weeks later is possible due to the hysteresis of policy changes that the corresponding mask requirement and passenger flow limitations will be implemented weeks after the Covid cases have increased. The most significant finding is the relationship between the recovery and type of occupations. The recovery will decrease with each increase in the percentage of the working population, mainly because of the work-from-home policy after the pandemic, however, the more percentages of occupations that require workers to be on-site, such as production, transportation, and sales, will reflect a significant increase to the MTA ridership recovery. In conclusion, our research determines that the post-pandemic ridership recovery of MTA is significantly influenced by the station structure, location of key trip generators, lag data of Covid cases and recoveries, and the types of occupations.
